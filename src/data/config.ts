@@ -113,6 +113,16 @@ export const ECONOMY = {
   milestones: [500, 1000, 2000, 3000, 5000, 6000, 8000, 10000, 15000, 22000, 30000, 35000, 50000, 60000, 80000, 100000, 125000, 150000, 200000, 300000, 500000],
 };
 
+/** Multipliers applied while the F1 Hyperion balloon is active. */
+export const HYPER = {
+  burner: 3,
+  lift: 3.2,
+  heatCap: 3,
+  steer: 4,
+  damage: 0.15,
+  smashCoins: 5,
+};
+
 export const DIFFICULTY = {
   relaxed: { damage: 0.6, intensity: 0.75, spawn: 0.8, reward: 0.85 },
   normal: { damage: 1, intensity: 1, spawn: 1, reward: 1 },

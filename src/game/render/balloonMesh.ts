@@ -77,6 +77,20 @@ function patternColor(def: BalloonDef, gore: number, v: number, u: number, face:
     case 'spiral':
       idx = Math.floor(u * GORES * 0.5 + v * 8) % n;
       break;
+    case 'hyper': {
+      // chrome cap and skirt with racing chevrons in between
+      if (v > 0.86 || v < 0.12) {
+        out.set('#d9e2ec').lerp(new THREE.Color('#7b8794'), (gore % 2) * 0.4);
+        return;
+      }
+      const chev = Math.abs(((u * GORES) % 2) - 1);
+      idx = Math.floor(v * 10 + chev * 1.5) % n;
+      if (Math.abs(v - 0.5) < 0.025) {
+        out.set('#ffffff');
+        return;
+      }
+      break;
+    }
   }
   out.set(c[idx % n]);
 }
@@ -128,7 +142,7 @@ export function buildEnvelope(def: BalloonDef): THREE.Group {
       seamPts.push(Math.sin(a) * p0.x * 1.003, p0.y, Math.cos(a) * p0.x * 1.003, Math.sin(a) * p1.x * 1.003, p1.y, Math.cos(a) * p1.x * 1.003);
     }
   }
-  for (const ti of [6, 14, 24, 31]) {
+  for (const ti of [3, 6, 10, 14, 19, 24, 28, 31, 34]) {
     const p = prof[ti];
     for (let s = 0; s < GORES * SUB; s++) {
       const a0 = (s / (GORES * SUB)) * Math.PI * 2;
@@ -152,6 +166,22 @@ export function buildEnvelope(def: BalloonDef): THREE.Group {
   const crown = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.14, 6, 16).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#d9d9d9', metalness: 0.6, roughness: 0.4 }));
   crown.position.y = CENTER + R - 0.05;
   g.add(crown);
+  // gold equator trim with rivets
+  const gold = new THREE.MeshStandardMaterial({ color: '#e9c46a', metalness: 0.7, roughness: 0.3 });
+  const eq = prof[24];
+  const trim = new THREE.Mesh(new THREE.TorusGeometry(eq.x * 1.035, 0.13, 6, 64).rotateX(Math.PI / 2), gold);
+  trim.position.y = eq.y;
+  g.add(trim);
+  for (let i = 0; i < GORES; i++) {
+    const a = (i / GORES) * Math.PI * 2;
+    const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 4), gold);
+    rivet.position.set(Math.sin(a) * eq.x * 1.05, eq.y, Math.cos(a) * eq.x * 1.05);
+    g.add(rivet);
+  }
+  // parachute vent panel visible from above
+  const vent = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: new THREE.Color(def.colors[1 % def.colors.length]), side: THREE.DoubleSide }));
+  vent.position.y = CENTER + R + 0.02;
+  g.add(vent);
   return g;
 }
 
@@ -187,6 +217,10 @@ export class BalloonView {
   private icicles: THREE.Group;
   private sandbags: THREE.Mesh[] = [];
   private envMat: THREE.MeshStandardMaterial;
+  private pennant!: THREE.Mesh;
+  private hyperParts: THREE.Group | null = null;
+  private boosterFlames: THREE.Mesh[] = [];
+  private rings: THREE.Mesh[] = [];
   private swing = 0;
   private swingVel = 0;
   private tilt = 0;
@@ -232,6 +266,26 @@ export class BalloonView {
     const burner = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.35, 0.5, 10), metal);
     burner.position.y = 3.75;
     this.basket.add(burner);
+    // corner posts, leather handles and a pennant on the burner frame
+    const leather = new THREE.MeshStandardMaterial({ color: '#3d2614', roughness: 0.8 });
+    for (const [x, z] of [[-1.35, -1.35], [1.35, -1.35], [-1.35, 1.35], [1.35, 1.35]]) {
+      const cp = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2, 6), leather);
+      cp.position.set(x, 1, z);
+      this.basket.add(cp);
+    }
+    for (const s of [-1, 1]) {
+      const handle = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.06, 5, 10, Math.PI), leather);
+      handle.position.set(s * 1.42, 1.35, 0);
+      handle.rotation.y = Math.PI / 2;
+      handle.rotation.z = Math.PI;
+      this.basket.add(handle);
+    }
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 4), metal);
+    pole.position.set(1.15, 2.7, 1.15);
+    this.basket.add(pole);
+    this.pennant = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.2, 3).rotateZ(-Math.PI / 2).scale(1, 1, 0.15), new THREE.MeshStandardMaterial({ color: def.colors[0], side: THREE.DoubleSide }));
+    this.pennant.position.set(1.75, 3.3, 1.15);
+    this.basket.add(this.pennant);
     const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.8, 4, 8), new THREE.MeshStandardMaterial({ color: '#e63946', roughness: 0.5 }));
     tank.position.set(0.95, 1.5, -0.95);
     this.basket.add(tank);
@@ -328,11 +382,62 @@ export class BalloonView {
     this.shield.position.y = 9;
     this.root.add(this.shield);
 
+    if (def.id === 'hyper') this.buildHyper(metal);
+
     this.character = character;
     character.group.position.set(-0.15, 0.55, 0.35);
     character.group.scale.setScalar(1);
     this.basket.add(character.group);
     this.setScale(def.scale);
+  }
+
+  private buildHyper(metal: THREE.Material) {
+    const g = new THREE.Group();
+    this.hyperParts = g;
+    const chrome = new THREE.MeshStandardMaterial({ color: '#cfd8e3', metalness: 0.95, roughness: 0.15 });
+    const neon = ['#ff006e', '#3a86ff', '#ffbe0b', '#06d6a0'];
+    // four rocket boosters strapped under the basket
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const b = new THREE.Group();
+      b.position.set(Math.cos(a) * 1.9, 0.4, Math.sin(a) * 1.9);
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 1.6, 4, 12), chrome);
+      b.add(body);
+      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.25, 12), new THREE.MeshBasicMaterial({ color: neon[i] }));
+      stripe.position.y = 0.3;
+      b.add(stripe);
+      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 0.5, 12, 1, true), metal);
+      nozzle.position.y = -1.2;
+      b.add(nozzle);
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.8, 0.7), new THREE.MeshStandardMaterial({ color: neon[i] }));
+      fin.position.set(Math.cos(a) * 0.4, -0.7, Math.sin(a) * 0.4);
+      fin.rotation.y = -a;
+      b.add(fin);
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3, 10, 1, true).rotateX(Math.PI).translate(0, -1.5, 0), new THREE.MeshBasicMaterial({ color: '#7fdcff', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+      flame.position.y = -1.4;
+      b.add(flame);
+      this.boosterFlames.push(flame);
+      g.add(b);
+    }
+    // spinning neon halo rings around the envelope
+    for (let i = 0; i < 2; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(9.6 + i * 1.4, 0.18, 8, 80), new THREE.MeshBasicMaterial({ color: neon[i], transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+      ring.position.y = 13;
+      ring.rotation.x = Math.PI / 2 + (i ? 0.35 : -0.35);
+      this.root.add(ring);
+      this.rings.push(ring);
+    }
+    // chrome wings on the basket
+    for (const s of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.1, 1.2), chrome);
+      wing.position.set(s * 2.9, 1.4, -0.3);
+      wing.rotation.z = s * 0.25;
+      g.add(wing);
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ color: neon[s > 0 ? 0 : 1] }));
+      tip.position.set(s * 4.45, 1.85, -0.3);
+      g.add(tip);
+    }
+    this.basket.add(g);
   }
 
   setScale(s: number) {
@@ -376,6 +481,20 @@ export class BalloonView {
     this.flameGlow.scale.setScalar(2 + s * 4);
     this.flameLight.intensity = s * 60;
     this.envMat.emissive.setRGB(0.25 * s, 0.1 * s, 0.02 * s);
+    this.pennant.rotation.y = Math.sin(time * 7) * 0.35 - vx * 0.03;
+    if (this.hyperParts) {
+      // the whole envelope pulses through the rainbow
+      this.envMat.emissive.setHSL((time * 0.25) % 1, 0.9, 0.04 + 0.03 * Math.sin(time * 6));
+      for (const [i, r] of this.rings.entries()) {
+        r.rotation.z += dt * (i ? -2.4 : 3.1);
+        (r.material as THREE.MeshBasicMaterial).color.setHSL((time * 0.3 + i * 0.5) % 1, 1, 0.45);
+      }
+      for (const f of this.boosterFlames) {
+        const len = (st.burning ? (st.boosting ? 2.2 : 1.4) : 0.35) * (0.85 + Math.random() * 0.3);
+        f.scale.set(1, len, 1);
+        (f.material as THREE.MeshBasicMaterial).color.setHSL(0.55 + Math.sin(time * 9) * 0.05, 1, 0.65);
+      }
+    }
 
     // ice tint
     const ice = Math.min(1, st.ice);

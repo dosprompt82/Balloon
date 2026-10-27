@@ -16,11 +16,14 @@ export class InputManager {
   private lastY = 0;
   enabled = false;
   onAction?: (a: Action) => void;
+  /** F1 toggles the secret Hyperion balloon (works in menus and in flight). */
+  onHyper?: () => void;
   private captureCallback: ((code: string) => void) | null = null;
   private bail = false;
 
   constructor(private getSettings: () => Settings, el: HTMLElement) {
     window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('help', (e) => e.preventDefault());
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', () => this.down.clear());
     el.addEventListener('mousedown', this.onMouseDown);
@@ -47,6 +50,11 @@ export class InputManager {
       const cb = this.captureCallback;
       this.captureCallback = null;
       cb(e.code);
+      return;
+    }
+    if (e.code === 'F1') {
+      e.preventDefault();
+      if (!e.repeat) this.onHyper?.();
       return;
     }
     const a = this.actionFor(e.code);

@@ -193,3 +193,62 @@ export class Wonders {
     }
   }
 }
+
+/** Other pilots' balloons drifting in the distance over the lowlands — a balloon festival. */
+export class Festival {
+  readonly group = new THREE.Group();
+  private items: { obj: THREE.Object3D; x: number; y: number; z: number; vx: number; phase: number }[] = [];
+  private rng = new Rng(5150);
+  constructor(makeEnvelope: (i: number) => THREE.Object3D) {
+    for (let i = 0; i < 12; i++) {
+      const g = new THREE.Group();
+      g.add(makeEnvelope(i));
+      const basket = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 2.6), new THREE.MeshLambertMaterial({ color: '#8a5a2b' }));
+      basket.position.y = 0.9;
+      g.add(basket);
+      const ropes = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.3, 3.2, 6, 1, true), new THREE.MeshBasicMaterial({ color: '#3d2b1f', wireframe: true }));
+      ropes.position.y = 3.4;
+      g.add(ropes);
+      const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: '#ffae5c', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+      flame.position.y = 4.6;
+      flame.scale.setScalar(4);
+      flame.name = 'flame';
+      g.add(flame);
+      this.group.add(g);
+      const it = { obj: g, x: 0, y: 0, z: 0, vx: 0, phase: this.rng.range(0, 10) };
+      this.items.push(it);
+      this.place(it, 0, 0, true);
+    }
+  }
+  private place(it: Festival['items'][number], cx: number, cy: number, anywhere: boolean, side = 0) {
+    const r = this.rng;
+    it.x = cx + (anywhere ? r.range(-450, 450) : side * 460);
+    it.y = cy + r.range(-110, 180);
+    it.z = r.range(-420, -110);
+    it.vx = r.range(1, 4) * r.sign();
+    it.obj.scale.setScalar(r.range(0.9, 1.3));
+  }
+  update(dt: number, t: number, cx: number, cy: number, alt: number, groundY: number) {
+    const show = alt < 3500;
+    this.group.visible = show;
+    if (!show) return;
+    for (const it of this.items) {
+      it.x += it.vx * dt;
+      it.y += Math.sin(t * 0.2 + it.phase) * dt * 1.5;
+      if (it.x - cx > 470) this.place(it, cx, cy, false, -1);
+      else if (it.x - cx < -470) this.place(it, cx, cy, false, 1);
+      if (it.y - cy < -200) it.y += 380;
+      if (it.y - cy > 260) it.y -= 380;
+      it.obj.position.set(it.x, Math.max(groundY + 25, it.y), it.z);
+      it.obj.rotation.z = Math.sin(t * 0.5 + it.phase) * 0.04;
+      const flame = it.obj.getObjectByName('flame') as THREE.Sprite;
+      flame.visible = Math.sin(t * 0.7 + it.phase * 3) > 0.4;
+    }
+  }
+  shift(dx: number, dy: number) {
+    for (const it of this.items) {
+      it.x -= dx;
+      it.y -= dy;
+    }
+  }
+}

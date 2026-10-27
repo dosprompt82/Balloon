@@ -8,6 +8,7 @@ import { xpToNext } from '../../game/economy/rewards';
 
 export function MainMenu() {
   const { save, setScreen } = useGame();
+  const hyper = useGame((s) => s.hyper);
   const ch = characterById(save.selectedCharacter);
   const bl = balloonById(save.selectedBalloon);
   const play = () => (save.hasPicked ? useGame.getState().prepareFlight() : setScreen('character'));
@@ -43,7 +44,8 @@ export function MainMenu() {
         <div className="stat-line"><span>🪙 Coins</span><span>{fmt(save.coins)}</span></div>
         <div className="stat-line"><span>💎 Star shards</span><span>{save.shards}</span></div>
         <div className="stat-line"><span>Character</span><span>{ch.name}</span></div>
-        <div className="stat-line"><span>Balloon</span><span>{bl.name}</span></div>
+        <div className="stat-line"><span>Balloon</span><span>{hyper ? 'HYPERION X 🚀' : bl.name}</span></div>
+        <div className="muted" style={{ fontSize: 12, fontWeight: 800, marginTop: 8 }}>Psst… press <span className="kbd">F1</span></div>
       </div>
     </>
   );

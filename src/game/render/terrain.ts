@@ -16,6 +16,22 @@ export function terrainHeight(x: number, z: number): number {
   return (n + 8) * flat;
 }
 
+const FIELD_COLORS = ['#e9c46a', '#a7c957', '#6a994e', '#bc8a5f', '#f2e8cf', '#d4a373', '#90be6d'];
+
+/** Patchwork farmland on flat lowland ground; returns false where nature stays wild. */
+function fieldColor(x: number, z: number, h: number, slope: number, out: THREE.Color): boolean {
+  if (h < 0.5 || h > 16 || slope > 0.35) return false;
+  const cx = Math.floor(x / 70);
+  const cz = Math.floor(z / 55);
+  const k = hashInts(cx * 73856093, cz);
+  if (k % 5 === 0) return false;
+  out.set(FIELD_COLORS[k % FIELD_COLORS.length]);
+  // crop rows: subtle stripes
+  const row = Math.floor(((k & 1 ? x : z) + 1000) / 6) % 2;
+  if (row) out.multiplyScalar(0.93);
+  return true;
+}
+
 function colorFor(h: number, slope: number, out: THREE.Color) {
   if (h < -6) out.set('#2a8fbd');
   else if (h < -3) out.set('#e9d8a6');
@@ -36,6 +52,10 @@ export class Terrain {
   private centerX = Infinity;
   readonly launchPad: THREE.Group;
   readonly volcano: THREE.Group;
+  private rocks: THREE.InstancedMesh;
+  private flowers: THREE.InstancedMesh;
+  private windmills: THREE.Group[] = [];
+  private mountains: THREE.Group;
 
   constructor() {
     this.geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG).rotateX(-Math.PI / 2).toNonIndexed();
@@ -65,6 +85,23 @@ export class Terrain {
       this.group.add(m);
     }
 
+    this.rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(2.2, 0), new THREE.MeshLambertMaterial({ color: '#8d8d82', flatShading: true }), 220);
+    this.flowers = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.9, 0), new THREE.MeshLambertMaterial({ color: '#ffffff', flatShading: true }), 600);
+    for (const m of [this.rocks, this.flowers]) {
+      m.frustumCulled = false;
+      this.group.add(m);
+    }
+    const fc = new THREE.Color();
+    const palette = ['#ff70a6', '#ffd670', '#ffffff', '#c77dff', '#ff9770'];
+    for (let i = 0; i < 600; i++) this.flowers.setColorAt(i, fc.set(palette[i % palette.length]));
+    for (let i = 0; i < 14; i++) {
+      const w = makeWindmill();
+      this.windmills.push(w);
+      this.group.add(w);
+    }
+    this.mountains = makeMountains();
+    this.group.add(this.mountains);
+
     this.launchPad = makeLaunchPad();
     this.group.add(this.launchPad);
     this.volcano = makeVolcano();
@@ -93,7 +130,9 @@ export class Terrain {
         avg += h / 3;
       }
       const slope = (Math.max(...hs) - Math.min(...hs)) / 10;
-      colorFor(avg, slope, c);
+      const fx = (this.baseX(i) + this.baseX(i + 1) + this.baseX(i + 2)) / 3 + cx;
+      const fz = (this.baseZ(i) + this.baseZ(i + 1) + this.baseZ(i + 2)) / 3;
+      if (!fieldColor(fx, fz, avg, slope, c)) colorFor(avg, slope, c);
       const jitter = 0.94 + (hashInts(i, cx) % 100) / 900;
       for (let k = 0; k < 3; k++) col.setXYZ(i + k, c.r * jitter, c.g * jitter, c.b * jitter);
     }
@@ -140,6 +179,55 @@ export class Terrain {
     }
     this.houses.count = this.roofs.count = hcount;
     this.houses.instanceMatrix.needsUpdate = this.roofs.instanceMatrix.needsUpdate = true;
+
+    // rocks on hillsides, flower meadows, windmills on the farms
+    let rc = 0;
+    let fcount = 0;
+    for (let i = 0; i < 1400; i++) {
+      const h0 = hashInts(i * 31, cx + 7);
+      const x = cx + ((h0 % 2200) - 1100);
+      const z = -(((h0 >> 12) % 900) - 120);
+      const h = terrainHeight(x, z);
+      if (Math.abs(x) < 40 && Math.abs(z + 10) < 40) continue;
+      if (h > 22 && rc < 220) {
+        const s = 0.6 + ((h0 >> 3) % 10) / 6;
+        q.setFromEuler(new THREE.Euler((h0 % 7) * 0.4, (h0 % 11) * 0.5, 0));
+        m.compose(new THREE.Vector3(x, h - 0.5, z), q, new THREE.Vector3(s, s * 0.7, s));
+        this.rocks.setMatrixAt(rc++, m);
+      } else if (h > 0 && h < 18 && fcount < 600 && (h0 >> 7) % 3 === 0) {
+        q.identity();
+        m.compose(new THREE.Vector3(x, h + 0.3, z), q, new THREE.Vector3(1, 0.6, 1));
+        this.flowers.setMatrixAt(fcount++, m);
+      }
+    }
+    this.rocks.count = rc;
+    this.flowers.count = fcount;
+    this.rocks.instanceMatrix.needsUpdate = this.flowers.instanceMatrix.needsUpdate = true;
+    let wi = 0;
+    for (let i = 0; i < 300 && wi < this.windmills.length; i++) {
+      const h0 = hashInts(i * 97, cx + 3);
+      const x = cx + ((h0 % 1800) - 900);
+      const z = -(((h0 >> 11) % 600) + 60);
+      const h = terrainHeight(x, z);
+      if (h < 1 || h > 14) continue;
+      const w = this.windmills[wi++];
+      w.visible = true;
+      w.position.set(x, h - 0.3, z);
+      w.rotation.y = ((h0 >> 4) % 100) / 100 - 0.5;
+    }
+    for (; wi < this.windmills.length; wi++) this.windmills[wi].visible = false;
+    this.mountains.position.x = cx;
+  }
+
+  /** Animated scenery (windmill sails, waving flags). */
+  animate(t: number) {
+    for (const [i, w] of this.windmills.entries()) {
+      const sails = w.getObjectByName('sails');
+      if (sails) sails.rotation.z = t * (0.8 + (i % 3) * 0.25);
+    }
+    this.launchPad.children.forEach((o, i) => {
+      if (o.name === 'flag') o.rotation.y = Math.sin(t * 3 + i) * 0.4;
+    });
   }
 
   private baseX(i: number) {
@@ -160,6 +248,62 @@ export class Terrain {
     }
     return [this.base[i * 2], this.base[i * 2 + 1]];
   }
+}
+
+function makeWindmill(): THREE.Group {
+  const g = new THREE.Group();
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.6, 11, 8), new THREE.MeshLambertMaterial({ color: '#f1e3c8', flatShading: true }));
+  tower.position.y = 5.5;
+  g.add(tower);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(2.3, 2.8, 8), new THREE.MeshLambertMaterial({ color: '#9c2f2f', flatShading: true }));
+  cap.position.y = 12.3;
+  g.add(cap);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.8, 0.2), new THREE.MeshLambertMaterial({ color: '#5b3a1e' }));
+  door.position.set(0, 0.9, 2.4);
+  g.add(door);
+  const sails = new THREE.Group();
+  sails.name = 'sails';
+  sails.position.set(0, 10.5, 2.2);
+  const sailMat = new THREE.MeshLambertMaterial({ color: '#fdf6e3', side: THREE.DoubleSide });
+  const spar = new THREE.MeshLambertMaterial({ color: '#6b4226' });
+  for (let i = 0; i < 4; i++) {
+    const arm = new THREE.Group();
+    arm.rotation.z = (i / 4) * Math.PI * 2;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.25, 7, 0.2), spar);
+    beam.position.y = 3.5;
+    arm.add(beam);
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 5.5), sailMat);
+    sail.position.set(0.95, 4, 0.05);
+    arm.add(sail);
+    sails.add(arm);
+  }
+  sails.add(new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), spar));
+  g.add(sails);
+  return g;
+}
+
+function makeMountains(): THREE.Group {
+  const g = new THREE.Group();
+  const rock = new THREE.MeshLambertMaterial({ color: '#8d9ac4', flatShading: true, fog: false });
+  const snow = new THREE.MeshLambertMaterial({ color: '#f4f8ff', flatShading: true, fog: false });
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const h0 = hashInts(i, 4242);
+    const r = 1550 + (h0 % 350);
+    const height = 120 + (h0 % 200);
+    const width = height * (1.5 + ((h0 >> 8) % 10) / 10);
+    const peak = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.ConeGeometry(width, height, 6, 1), rock);
+    body.position.y = height / 2 - 10;
+    peak.add(body);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(width * 0.32, height * 0.32, 6, 1), snow);
+    cap.position.y = height - 10 - height * 0.16 + 1;
+    peak.add(cap);
+    peak.position.set(Math.cos(a) * r, 0, Math.sin(a) * r - 300);
+    peak.rotation.y = (h0 % 10) * 0.3;
+    g.add(peak);
+  }
+  return g;
 }
 
 function makeLaunchPad(): THREE.Group {

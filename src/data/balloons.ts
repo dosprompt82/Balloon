@@ -1,6 +1,6 @@
 import type { Modifiers } from './modifiers';
 
-export type PatternType = 'stripes' | 'sunburst' | 'patchwork' | 'zigzag' | 'stars' | 'checker' | 'gradient' | 'spiral';
+export type PatternType = 'stripes' | 'sunburst' | 'patchwork' | 'zigzag' | 'stars' | 'checker' | 'gradient' | 'spiral' | 'hyper';
 
 export interface BalloonDef {
   id: string;
@@ -28,5 +28,12 @@ export const BALLOONS: BalloonDef[] = [
   { id: 'celestial', name: 'Celestial Voyager', description: 'Star-woven fabric hums with stored energy.', pattern: 'stars', colors: ['#10002b', '#5a189a', '#e0aaff', '#ffd60a'], envelopeHp: 150, basketHp: 130, fuelCapacity: 130, modifiers: { lift: 1.08, damageTaken: 0.9, coinGain: 1.1 }, cost: 12000, shardCost: 25, level: 15, scale: 1.1 },
   { id: 'nebula', name: 'Nebula Spiral', description: 'Legendary. A hypnotic spiral of cosmic colour.', pattern: 'spiral', colors: ['#ff006e', '#8338ec', '#3a86ff', '#06d6a0'], envelopeHp: 165, basketHp: 140, fuelCapacity: 140, modifiers: { lift: 1.12, steer: 1.15, rareChance: 1.25 }, cost: 20000, shardCost: 60, level: 20, scale: 1.12 },
 ];
+
+/** Secret F1 balloon: not sold in the garage, toggled at any time with F1. */
+export const HYPER_BALLOON: BalloonDef = {
+  id: 'hyper', name: 'HYPERION X', description: 'Rocket-boosted, neon-ringed and absurdly fast. Smashes through anything.',
+  pattern: 'hyper', colors: ['#ff006e', '#fb5607', '#ffbe0b', '#06d6a0', '#3a86ff', '#8338ec'],
+  envelopeHp: 300, basketHp: 250, fuelCapacity: 200, modifiers: {}, cost: 0, level: 1, scale: 1.15,
+};
 
 export const balloonById = (id: string) => BALLOONS.find((b) => b.id === id) ?? BALLOONS[0];

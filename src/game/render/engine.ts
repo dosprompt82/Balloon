@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SIM, ALTITUDE, PHYSICS } from '../../data/config';
 import { characterById } from '../../data/characters';
-import { balloonById } from '../../data/balloons';
+import { balloonById, HYPER_BALLOON } from '../../data/balloons';
 import { ZONES } from '../../data/zones';
 import { toolById } from '../../data/tools';
 import type { ObstacleId } from '../../data/obstacles';
@@ -24,7 +24,9 @@ import { DisasterViews, Ribbon } from './disasterViews';
 import { computePalette } from './environment';
 import { Overlay, type Indicator } from './overlay';
 import { planetTexture } from './textures';
-import { Starfield, Wonders } from './wonders';
+import { Starfield, Wonders, Festival } from './wonders';
+import { BALLOONS } from '../../data/balloons';
+import { buildEnvelope } from './balloonMesh';
 import { useGame, lookFor, currentLoadout, type EngineApi, type FlightConfig, type HudSnapshot } from '../../app/store';
 import { smoothstep } from '../core/math';
 import type { Action } from '../persistence/save';
@@ -38,6 +40,7 @@ export class GameEngine implements EngineApi {
   readonly camera = new THREE.PerspectiveCamera(55, 1, 0.5, 26000);
   private stars = new Starfield();
   private wonders = new Wonders();
+  private festival = new Festival((i) => buildEnvelope(BALLOONS[i % BALLOONS.length]));
   private rig = new CameraRig(this.camera);
   private sky = new Sky();
   private clouds: CloudField;
@@ -111,7 +114,7 @@ export class GameEngine implements EngineApi {
       }),
     );
     this.atmoRim.renderOrder = -7;
-    this.scene.add(this.planet, this.atmoRim, this.stars.points, this.wonders.group);
+    this.scene.add(this.planet, this.atmoRim, this.stars.points, this.wonders.group, this.festival.group);
 
     for (const o of [this.particles.points, this.additive.points, this.rain.lines, this.streaks.lines, this.hazardViews.group, this.collectViews.group, this.telegraphs.group]) this.scene.add(o);
     this.streaks.setColor('#ffffff', 0.25);
@@ -134,6 +137,7 @@ export class GameEngine implements EngineApi {
 
     this.input = new InputManager(() => useGame.getState().save.settings, this.renderer.domElement);
     this.input.onAction = (a: Action) => this.onAction(a);
+    this.input.onHyper = () => this.toggleHyper();
     window.addEventListener('resize', this.resize);
     this.resize();
     this.applySettings();
@@ -156,6 +160,8 @@ export class GameEngine implements EngineApi {
     if (this.mode === 'flight') this.endFlightView();
     this.mode = 'showcase';
     this.rig.reset();
+    this.camera.fov = 55;
+    this.camera.updateProjectionMatrix();
     this.refreshShowcase();
   }
 
@@ -211,6 +217,7 @@ export class GameEngine implements EngineApi {
     const st = useGame.getState();
     const loadout = currentLoadout(st.save, cfg.mods);
     this.sim = new FlightSim(loadout, { seed: cfg.seed, previousBest: st.save.stats.bestAltitude });
+    this.sim.hyper = st.hyper;
     this.mode = 'flight';
     this.finishing = false;
     this.paused = false;
@@ -253,18 +260,37 @@ export class GameEngine implements EngineApi {
     audio.mood = 'menu';
   }
 
+  /** F1: swap to (or back from) the secret Hyperion X balloon, in menus or mid-flight. */
+  toggleHyper() {
+    const st = useGame.getState();
+    const on = !st.hyper;
+    st.setHyper(on);
+    audio.unlock();
+    audio.play(on ? 'record' : 'tool');
+    st.toast({ text: on ? '🚀 HYPERION X ENGAGED 🚀' : 'Hyperion X disengaged', kind: on ? 'gold' : 'info', big: on, sub: on ? 'Triple lift, no fuel use, smash through anything. Press F1 again to return.' : undefined }, 3200);
+    if (this.sim) this.sim.hyper = on;
+    this.buildBalloon();
+    if (this.balloon) {
+      const p = this.balloon.root.position;
+      for (const c of ['#ff006e', '#ffbe0b', '#3a86ff', '#06d6a0', '#8338ec']) this.additive.emit({ x: p.x, y: p.y + 12, count: 40, speed: 40, life: 1.2, size: 2, color: c, drag: 1.5 });
+      this.flash = Math.max(this.flash, 0.6);
+      this.rig.addShake(0.8);
+    }
+  }
+
   private buildBalloon() {
     const save = useGame.getState().save;
+    const hyper = useGame.getState().hyper;
     const ch = characterById(save.selectedCharacter);
     const look = lookFor(save, ch);
-    const key = `${save.selectedBalloon}|${ch.id}|${look.shirt}|${look.pants}|${look.accessory}`;
+    const key = `${hyper ? 'hyper' : save.selectedBalloon}|${ch.id}|${look.shirt}|${look.pants}|${look.accessory}`;
     if (this.balloon && key === this.balloonKey) return;
     if (this.balloon) {
       this.scene.remove(this.balloon.root);
       this.balloon.dispose();
     }
     this.balloonKey = key;
-    this.balloon = new BalloonView(balloonById(save.selectedBalloon), new CharacterRig(ch, look));
+    this.balloon = new BalloonView(hyper ? HYPER_BALLOON : balloonById(save.selectedBalloon), new CharacterRig(ch, look));
     this.scene.add(this.balloon.root);
   }
 
@@ -314,7 +340,7 @@ export class GameEngine implements EngineApi {
     if (b) {
       b.root.position.set(0, y, 0);
       b.update(dt, this.time, Math.sin(this.time * 0.4) * 2, 0, {
-        heat: 1, burning: Math.sin(this.time * 0.9) > 0.55, boosting: false, venting: false, steer: 0, ice: 0, shield: 0, rod: 0,
+        heat: 1, burning: useGame.getState().hyper || Math.sin(this.time * 0.9) > 0.55, boosting: false, venting: false, steer: 0, ice: 0, shield: 0, rod: 0,
         fans: (useGame.getState().save.upgrades.fans ?? 0) > 0, deflate: 0, sandbags: 6,
       });
       b.character.setPose(this.showcaseKind === 'character' ? (Math.sin(this.time * 0.5) > 0.6 ? 'celebrate' : 'wave') : 'wave');
@@ -329,6 +355,7 @@ export class GameEngine implements EngineApi {
     else this.rig.showcase(dt, 0, y, this.time, 70, -2);
     this.clouds.update(dt, this.camera.position.x, this.camera.position.y, 2);
     this.terrain.update(0);
+    this.terrain.animate(this.time);
     this.terrain.group.position.set(0, 0, 0);
     this.particles.update(dt);
     this.additive.update(dt);
@@ -368,6 +395,7 @@ export class GameEngine implements EngineApi {
       this.rig.shift(dx, dy);
       this.overlay.shift(dx, dy);
       this.wonders.shift(dx, dy);
+      this.festival.shift(dx, dy);
     }
     const ox = this.origin.x;
     const oy = this.origin.y;
@@ -406,6 +434,20 @@ export class GameEngine implements EngineApi {
     if (sim.burning && Math.random() < dt * (sim.boosting ? 60 : 25)) {
       this.additive.emit({ x: px, y: py + 5.5, z: 0, vy: 9, count: 1, speed: 2, life: 0.6, size: 0.7, color: '#ffd166', color2: '#ff6b35' });
     }
+    if (sim.hyper) {
+      const hue = (this.time * 0.4) % 1;
+      const c = new THREE.Color().setHSL(hue, 1, 0.6);
+      const n = sim.burning ? (sim.boosting ? 6 : 3) : 1;
+      for (let i = 0; i < n; i++) {
+        const a = Math.floor(Math.random() * 4) * (Math.PI / 2) + Math.PI / 4;
+        this.additive.emit({ x: px + Math.cos(a) * 1.9, y: py - 1.5, z: Math.sin(a) * 1.9, vy: -18 - Math.abs(b.vy), count: 1, speed: 3, life: 1.1, size: 2.2, sizeEnd: 0.4, color: c, color2: '#ffffff', drag: 0.5 });
+      }
+    }
+    const fov = sim.hyper ? 55 + Math.min(18, Math.abs(b.vy) * 0.6) : 55;
+    if (Math.abs(this.camera.fov - fov) > 0.05) {
+      this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 3);
+      this.camera.updateProjectionMatrix();
+    }
     if (sim.venting && Math.random() < dt * 14) {
       this.particles.emit({ x: px, y: py + PHYSICS.envelopeOffsetY + 7.4, vy: 5, count: 1, speed: 2, life: 1.2, size: 2.5, sizeEnd: 5, color: '#f3f3f3', alpha: 0.4 });
     }
@@ -431,7 +473,7 @@ export class GameEngine implements EngineApi {
     this.rain.vx = rainVx;
     this.rain.vy = rainVy;
     this.rain.update(dt, px, py);
-    this.streaks.amount = Math.min(1, Math.max(0, (Math.abs(sim.windX) - 6) / 14));
+    this.streaks.amount = Math.min(1, Math.max(0, (Math.abs(sim.windX) - 6) / 14, sim.hyper ? (Math.abs(b.vy) - 8) / 15 : 0));
     this.streaks.vx = sim.windX * 6;
     this.streaks.vy = -b.vy * 3 - 2;
     this.streaks.update(dt, px, py);
@@ -442,6 +484,7 @@ export class GameEngine implements EngineApi {
     this.clouds.update(dt, px, py, sim.windX);
     if (sim.altitude < 30000) {
       this.terrain.update(b.x);
+      this.terrain.animate(this.time);
       this.terrain.group.position.set(-ox, -oy, 0);
       this.terrain.group.visible = sim.altitude < 20000;
     } else this.terrain.group.visible = false;
@@ -555,6 +598,12 @@ export class GameEngine implements EngineApi {
           this.rig.addShake(0.8);
           this.overlay.add(`-${Math.round(e.amount)}`, '#ff6b6b', e.x - ox, e.y - oy, 20);
           this.particles.emit({ x: e.x - ox, y: e.y - oy, count: 18, speed: 10, life: 0.8, size: 1.4, color: e.source.includes('Bird') || e.source.includes('Geese') ? '#f1f1f1' : '#8a7a6a', gravity: 6 });
+          break;
+        case 'smash':
+          audio.play('hit');
+          this.rig.addShake(0.5);
+          this.overlay.add(`SMASH! +${Math.round(e.coins)}`, '#ff70a6', e.x - ox, e.y - oy, 24);
+          for (const c of ['#ff006e', '#ffbe0b', '#3a86ff']) this.additive.emit({ x: e.x - ox, y: e.y - oy, count: 14, speed: 22, life: 0.6, size: 1.5, color: c });
           break;
         case 'blocked':
           audio.play('shield');
@@ -722,6 +771,7 @@ export class GameEngine implements EngineApi {
     this.planet.rotation.x = 0.3;
     this.stars.update(this.camera.position, p.stars, this.time);
     this.wonders.update(dt, this.time, this.camera.position.x, this.camera.position.y, alt);
+    this.festival.update(dt, this.time, this.camera.position.x, this.camera.position.y + (this.mode === 'flight' ? 0 : 20), alt, this.mode === 'flight' ? -this.origin.y : 0);
     this.atmoRim.position.copy(this.planet.position);
     (this.atmoRim.material as THREE.ShaderMaterial).uniforms.uAlpha.value = pv * 0.9;
   }

@@ -123,6 +123,8 @@ interface GameState {
   flight: FlightConfig | null;
   lastResult: RunResult | null;
   flowStep: number;
+  hyper: boolean;
+  setHyper(on: boolean): void;
   setScreen(s: Screen): void;
   update(fn: (s: SaveData) => void): void;
   toast(t: Omit<Toast, 'id'>, ms?: number): void;
@@ -154,6 +156,10 @@ export const useGame = create<GameState>((set, get) => ({
   flight: null,
   lastResult: null,
   flowStep: 0,
+  hyper: false,
+  setHyper(on) {
+    set({ hyper: on });
+  },
 
   setScreen(screen) {
     set({ screen });

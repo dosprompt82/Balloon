@@ -1,4 +1,4 @@
-import { ALTITUDE, DIFFICULTY, ECONOMY, PHYSICS, RESOURCES, TRAFFIC, COLLECT } from '../data/config';
+import { ALTITUDE, DIFFICULTY, ECONOMY, HYPER, PHYSICS, RESOURCES, TRAFFIC, COLLECT } from '../data/config';
 import { ZONES, zoneIndexAt } from '../data/zones';
 import { TOOLS, TOOL_TUNING, type ToolId } from '../data/tools';
 import type { CollectibleId } from '../data/collectibles';
@@ -30,6 +30,7 @@ export const emptyInput = (): SimInput => ({ burner: false, vent: false, boost: 
 export type SimEvent =
   | { type: 'hit'; target: 'envelope' | 'basket'; x: number; y: number; amount: number; source: string }
   | { type: 'blocked'; x: number; y: number }
+  | { type: 'smash'; x: number; y: number; coins: number }
   | { type: 'nearMiss'; x: number; y: number; coins: number }
   | { type: 'collect'; id: CollectibleId; x: number; y: number; amount: number }
   | { type: 'strike'; x: number; y: number; hit: boolean; absorbed: boolean }
@@ -63,6 +64,8 @@ export class FlightSim {
   readonly collectibles: Collectibles;
   readonly previousBest: number;
 
+  /** F1 Hyperion mode: huge lift and steering, no fuel use, rams through hazards. */
+  hyper = false;
   envelope: number;
   basket: number;
   oxygen: number;
@@ -185,7 +188,7 @@ export class FlightSim {
   }
 
   private damageScale() {
-    return DIFFICULTY[this.loadout.difficulty].damage * this.loadout.flight.damage * this.loadout.mods.damageTaken;
+    return DIFFICULTY[this.loadout.difficulty].damage * this.loadout.flight.damage * this.loadout.mods.damageTaken * (this.hyper ? HYPER.damage : 1);
   }
 
   applyDamage(env: number, basket: number) {
@@ -331,7 +334,9 @@ export class FlightSim {
         burnerEfficiency: burnerEff,
         valveEfficiency: valveEff,
       },
-      { burnerMult: L.burnerMult, liftMult: L.liftMult, steerAccel: L.steerAccel, fuelUse: L.mods.fuelUse, heatMaxMult: 1 + (L.burnerMult - 1) * 0.9 },
+      this.hyper
+        ? { burnerMult: L.burnerMult * HYPER.burner, liftMult: L.liftMult * HYPER.lift, steerAccel: Math.max(L.steerAccel, 2.2) * HYPER.steer, fuelUse: 0, heatMaxMult: HYPER.heatCap }
+        : { burnerMult: L.burnerMult, liftMult: L.liftMult, steerAccel: L.steerAccel, fuelUse: L.mods.fuelUse, heatMaxMult: 1 + (L.burnerMult - 1) * 0.9 },
       dt,
     );
     this.burning = out.burning;
@@ -547,6 +552,13 @@ export class FlightSim {
       const clear = Math.min(de, db);
       if (clear < 0) {
         h.hasHit = true;
+        if (this.hyper) {
+          h.alive = false;
+          const coins = HYPER.smashCoins * this.loadout.mods.coinGain;
+          this.nearMissCoins += coins;
+          this.emit({ type: 'smash', x: h.x, y: h.y, coins });
+          return;
+        }
         if (this.shieldTimer > 0) {
           h.alive = false;
           this.emit({ type: 'blocked', x: h.x, y: h.y });

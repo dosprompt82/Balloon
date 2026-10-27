@@ -149,7 +149,8 @@ export class GameEngine implements EngineApi {
   // ---------------------------------------------------------------- API
   applySettings() {
     const s = useGame.getState().save.settings;
-    const pr = s.quality === 'low' ? 0.7 : s.quality === 'medium' ? 1 : Math.min(window.devicePixelRatio, 2);
+    const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    const pr = s.quality === 'low' ? 0.7 : s.quality === 'medium' ? 1 : Math.min(window.devicePixelRatio, coarse ? 1.5 : 2);
     this.renderer.setPixelRatio(pr);
     this.resize();
     this.rig.shakeScale = s.shake;
@@ -169,6 +170,24 @@ export class GameEngine implements EngineApi {
   refreshShowcase() {
     if (this.mode !== 'showcase') return;
     this.buildBalloon();
+  }
+
+  /** On-screen touch buttons route through the same input path as the keyboard. */
+  touchHold(a: Action, down: boolean) {
+    this.input.setVirtual(a, down);
+  }
+  touchPress(a: Action) {
+    this.input.pressVirtual(a);
+  }
+  /** Bail out (parachute) when out of fuel — the touch equivalent of Enter. */
+  touchBail() {
+    this.input.pressBail();
+  }
+  selectTool(id: string) {
+    const sim = this.sim;
+    if (!sim) return;
+    const i = sim.tools.indexOf(id as never);
+    if (i >= 0) sim.toolIndex = i;
   }
 
   captureKey(cb: (code: string) => void) {

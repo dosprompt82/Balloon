@@ -5,6 +5,7 @@ import { INTENSITY_NAMES } from '../../data/config';
 import { toolById } from '../../data/tools';
 import { fmt } from '../../game/core/math';
 import { Bar } from '../ui';
+import { TouchControls, useTouchMode, useToolTap } from './TouchControls';
 
 /** Smoothly animated altitude counter (interpolates between HUD snapshots every animation frame). */
 function AltitudeNumber({ value }: { value: number }) {
@@ -130,46 +131,49 @@ function Warnings({ h }: { h: HudSnapshot }) {
   );
 }
 
-function ToolBar({ h }: { h: HudSnapshot }) {
+function ToolBar({ h, touch }: { h: HudSnapshot; touch: boolean }) {
+  const tap = useToolTap(h, touch);
   return (
-    <div className="toolbar">
+    <div className={`toolbar ${touch ? 'touch' : ''}`}>
       {h.tools.map((t) => {
         const def = toolById(t.id);
         const active = (t.id === 'shield' && h.shield > 0) || (t.id === 'lightningRod' && h.rod > 0);
         return (
-          <div key={t.id} className={`tool ${h.currentTool === t.id ? 'on' : ''} ${t.charges === 0 ? 'empty' : ''}`} style={active ? { boxShadow: '0 0 20px #7df9ff' } : {}}>
+          <div key={t.id} onPointerDown={tap.tool(t.id)} className={`tool ${h.currentTool === t.id ? 'on' : ''} ${t.charges === 0 ? 'empty' : ''}`} style={active ? { boxShadow: '0 0 20px #7df9ff' } : {}}>
             <span className="ico">{def.icon}</span>
             <span className="nm">{def.name.toUpperCase()}</span>
             <span className="ch">{t.charges}</span>
-            {h.currentTool === t.id && <span className="keyhint">SPACE</span>}
+            {h.currentTool === t.id && <span className="keyhint">{touch ? 'TAP' : 'SPACE'}</span>}
           </div>
         );
       })}
-      <div className="tool" title="Repair (E)">
+      <div className="tool" title="Repair (E)" onPointerDown={tap.repair}>
         <span className="ico">🔧</span>
         <span className="nm">REPAIR</span>
         <span className="ch" style={{ background: h.materials >= h.repairCost ? '#06d6a0' : '#6c757d' }}>{h.materials}</span>
-        <span className="keyhint">E</span>
+        <span className="keyhint">{touch ? 'TAP' : 'E'}</span>
       </div>
     </div>
   );
 }
 
-function Hint({ h }: { h: HudSnapshot }) {
+function Hint({ h, touch }: { h: HudSnapshot; touch: boolean }) {
   const { settings } = useGame((s) => s.save);
   const flights = useGame((s) => s.save.stats.flights);
   if (!settings.showHints || flights > 3) return null;
   let text: React.ReactNode = null;
-  if (h.time < 7 && h.altitude < 20) text = <>Hold <span className="kbd">W</span> to fire the burner — the balloon needs a moment to heat up!</>;
+  if (touch && h.time < 7 && h.altitude < 20) text = <>Hold 🔥 BURN to heat the balloon — it needs a moment to lift off!</>;
+  else if (touch && h.time < 20 && h.altitude > 30 && h.altitude < 250) text = <>Let go early — momentum keeps you rising. ◀ ▶ to steer.</>;
+  else if (h.time < 7 && h.altitude < 20) text = <>Hold <span className="kbd">W</span> to fire the burner — the balloon needs a moment to heat up!</>;
   else if (h.time < 20 && h.altitude > 30 && h.altitude < 250) text = <>Release <span className="kbd">W</span> early — momentum keeps you rising. <span className="kbd">A</span>/<span className="kbd">D</span> to steer.</>;
-  else if (h.envelope < h.maxEnvelope * 0.6 && h.materials >= h.repairCost) text = <>Press <span className="kbd">E</span> to patch the balloon.</>;
+  else if (h.envelope < h.maxEnvelope * 0.6 && h.materials >= h.repairCost) text = touch ? <>Tap 🔧 to patch the balloon.</> : <>Press <span className="kbd">E</span> to patch the balloon.</>;
   else if (h.fuel < h.maxFuel * 0.3) text = <>Fuel low! Fly into red ⛽ canisters.</>;
   else if (h.warnings[0]?.phase === 'warning') text = <>Read the warning and move early — every disaster has an escape.</>;
   if (!text) return null;
   return <div className="hint">{text}</div>;
 }
 
-function PauseMenu() {
+function PauseMenu({ touch }: { touch: boolean }) {
   const { setPaused, quitFlight, setScreen } = useGame();
   return (
     <div className="overlay-center">
@@ -180,7 +184,7 @@ function PauseMenu() {
           <button className="btn blue" onClick={() => { setPaused(false); quitFlight(); }}>End flight & collect rewards</button>
           <button className="btn ghost" onClick={() => { setPaused(false); quitFlight(); setTimeout(() => setScreen('settings'), 1000); }}>End & open settings</button>
         </div>
-        <p className="muted" style={{ fontWeight: 700 }}>Esc to resume</p>
+        <p className="muted" style={{ fontWeight: 700 }}>{touch ? '' : 'Esc to resume'}</p>
       </div>
     </div>
   );
@@ -219,26 +223,27 @@ export function Hud() {
   const paused = useGame((s) => s.paused);
   const equip = useGame((s) => s.equipmentOpen);
   const special = useGame((s) => s.special);
+  const touch = useTouchMode();
   if (!h) return null;
   const hurt = Math.min(h.envelope / h.maxEnvelope, h.basket / h.maxBasket);
   const vignette = h.hypoxic ? 'inset 0 0 160px 60px rgba(40,0,80,0.7)' : hurt < 0.3 ? `inset 0 0 140px 40px rgba(200,0,30,${0.35 + 0.2 * Math.sin(h.time * 6)})` : h.temp < -20 ? 'inset 0 0 140px 30px rgba(170,220,255,0.35)' : 'none';
   return (
-    <div className="hud" data-testid="hud">
+    <div className="hud" data-testid="hud" data-touch={touch}>
       <div className="vignette" style={{ boxShadow: vignette }} />
       <AltitudeMeter h={h} />
       <AltitudeLadder h={h} />
       <Gauges h={h} />
       <div className="coins-run" style={{ left: 74 }}>🪙 {fmt(h.coins)}</div>
       <Warnings h={h} />
-      <ToolBar h={h} />
+      <ToolBar h={h} touch={touch} />
       {h.repairing > 0 && (
         <div className="repair-box">
           🔧 Repairing…
           <Bar value={h.repairing} max={1} color="#06d6a0" />
         </div>
       )}
-      {h.noFuel && !h.dying && <div className="hint" style={{ background: '#ffe0e6' }}>Out of fuel! Find a canister or press <span className="kbd">Enter</span> to parachute down.</div>}
-      {!h.noFuel && <Hint h={h} />}
+      {h.noFuel && !h.dying && !touch && <div className="hint" style={{ background: '#ffe0e6' }}>Out of fuel! Find a canister or press <span className="kbd">Enter</span> to parachute down.</div>}
+      {!h.noFuel && <Hint h={h} touch={touch} />}
       <div className="status-row">
         {special === 'hyper' && <span className="status-pill" style={{ background: 'linear-gradient(90deg,#ff006e,#8338ec,#3a86ff)' }}>🚀 HYPERION X · F1</span>}
         {special === 'insano' && <span className="status-pill" style={{ background: 'linear-gradient(90deg,#d00000,#ff3d00,#ffb000)' }}>🔥 INSANO X · F2</span>}
@@ -247,8 +252,9 @@ export function Hud() {
         {h.hypoxic && <span className="status-pill" style={{ background: '#5a189a' }}>NO OXYGEN</span>}
         <span className="status-pill">⏱ {Math.floor(h.time / 60)}:{String(Math.floor(h.time % 60)).padStart(2, '0')}</span>
       </div>
+      {touch && !paused && <TouchControls h={h} />}
       <div style={{ pointerEvents: 'auto' }}>
-        {paused && <PauseMenu />}
+        {paused && <PauseMenu touch={touch} />}
         {equip && !paused && <EquipmentPanel h={h} />}
       </div>
     </div>

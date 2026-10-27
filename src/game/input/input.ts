@@ -21,6 +21,8 @@ export class InputManager {
   onSpecial?: (id: SpecialId) => void;
   private captureCallback: ((code: string) => void) | null = null;
   private bail = false;
+  /** Held on-screen touch buttons. */
+  private virtualDown = new Set<Action>();
 
   constructor(private getSettings: () => Settings, el: HTMLElement) {
     window.addEventListener('keydown', this.onKeyDown);
@@ -94,7 +96,24 @@ export class InputManager {
     this.wheel += Math.sign(e.deltaY);
   };
 
+  /** Touch controls: hold an action down (burner, vent, steer, boost). */
+  setVirtual(a: Action, down: boolean) {
+    if (down) this.virtualDown.add(a);
+    else this.virtualDown.delete(a);
+  }
+
+  /** Touch controls: one-shot press (tool, repair, switch tool, pause). */
+  pressVirtual(a: Action) {
+    this.pressed.add(a);
+    if (this.enabled) this.onAction?.(a);
+  }
+
+  pressBail() {
+    if (this.enabled) this.bail = true;
+  }
+
   isDown(a: Action): boolean {
+    if (this.virtualDown.has(a)) return true;
     const codes = this.getSettings().bindings[a];
     for (const c of codes) if (this.down.has(c)) return true;
     return false;
@@ -136,6 +155,7 @@ export class InputManager {
     this.down.clear();
     this.pressed.clear();
     this.mouseButtons.clear();
+    this.virtualDown.clear();
     this.bail = false;
   }
 }

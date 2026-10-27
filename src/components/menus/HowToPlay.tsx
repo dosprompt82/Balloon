@@ -22,6 +22,9 @@ export function HowToPlay() {
             <span className="kbd">F2</span> toggles <b>Insano X</b> — six afterburners, more than twice as fast as Hyperion.
           </p>
           <p>
+            <b>On a phone:</b> hold 🔥 BURN (bottom right) to climb, ⬇ VENT to sink, ◀ ▶ (bottom left) to steer. Tap a tool to select it and tap again to use it; tap 🔧 to repair. 🚀 and 🔥 on the left switch on the secret balloons.
+          </p>
+          <p>
             <b>Momentum matters:</b> the balloon keeps rising after you release the burner and takes a while to start sinking. Plan ahead!
           </p>
         </div>

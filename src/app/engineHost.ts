@@ -14,6 +14,8 @@ export function mountEngine(el: HTMLElement): GameEngine {
   return engine;
 }
 
+export const getEngineInstance = () => engine;
+
 export function requestKeyCapture(cb: (code: string) => void) {
   engine?.captureKey(cb);
 }

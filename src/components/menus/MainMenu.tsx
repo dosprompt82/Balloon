@@ -5,10 +5,13 @@ import { balloonById } from '../../data/balloons';
 import { fmt } from '../../game/core/math';
 import { zoneAt } from '../../data/zones';
 import { xpToNext } from '../../game/economy/rewards';
+import { useTouchMode } from '../hud/TouchControls';
+import { getEngineInstance } from '../../app/engineHost';
 
 export function MainMenu() {
   const { save, setScreen } = useGame();
   const special = useGame((s) => s.special);
+  const touch = useTouchMode();
   const ch = characterById(save.selectedCharacter);
   const bl = balloonById(save.selectedBalloon);
   const play = () => (save.hasPicked ? useGame.getState().prepareFlight() : setScreen('character'));
@@ -29,6 +32,12 @@ export function MainMenu() {
           <Btn className="purple small" onClick={() => setScreen('challenges')} testId="menu-challenges">🏁 Challenges</Btn>
           <Btn className="purple small" onClick={() => setScreen('achievements')} testId="menu-achievements">🏆 Achievements</Btn>
         </div>
+        {touch && (
+          <div className="row">
+            <Btn className={`small ${special === 'hyper' ? 'purple' : 'ghost'}`} onClick={() => getEngineInstance()?.toggleSpecial('hyper')} testId="touch-hyper">🚀 Hyperion X</Btn>
+            <Btn className={`small ${special === 'insano' ? '' : 'ghost'}`} onClick={() => getEngineInstance()?.toggleSpecial('insano')} testId="touch-insano">🔥 Insano X</Btn>
+          </div>
+        )}
         <div className="row">
           <Btn className="ghost small" onClick={() => setScreen('stats')} testId="menu-stats">📊 Statistics</Btn>
           <Btn className="ghost small" onClick={() => setScreen('settings')} testId="menu-settings">⚙ Settings</Btn>

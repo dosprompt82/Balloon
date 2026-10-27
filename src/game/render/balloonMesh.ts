@@ -77,6 +77,20 @@ function patternColor(def: BalloonDef, gore: number, v: number, u: number, face:
     case 'spiral':
       idx = Math.floor(u * GORES * 0.5 + v * 8) % n;
       break;
+    case 'insano': {
+      // jet-black envelope licked by flames from below, gold crown
+      if (v > 0.9) {
+        out.set('#ffd166');
+        return;
+      }
+      const flame = 0.1 + 0.32 * Math.pow(Math.abs(Math.sin(u * GORES * Math.PI * 0.5 + v * 3)), 2) * (1 - v);
+      if (v < flame) {
+        idx = v < flame * 0.45 ? 3 : v < flame * 0.75 ? 2 : 1;
+        break;
+      }
+      idx = Math.abs(v - 0.62) < 0.02 ? 4 : 0;
+      break;
+    }
     case 'hyper': {
       // chrome cap and skirt with racing chevrons in between
       if (v > 0.86 || v < 0.12) {
@@ -382,7 +396,7 @@ export class BalloonView {
     this.shield.position.y = 9;
     this.root.add(this.shield);
 
-    if (def.id === 'hyper') this.buildHyper(metal);
+    if (def.id === 'hyper' || def.id === 'insano') this.buildHyper(metal, def.id === 'insano');
 
     this.character = character;
     character.group.position.set(-0.15, 0.55, 0.35);
@@ -391,16 +405,22 @@ export class BalloonView {
     this.setScale(def.scale);
   }
 
-  private buildHyper(metal: THREE.Material) {
+  private insano = false;
+  private buildHyper(metal: THREE.Material, insano: boolean) {
     const g = new THREE.Group();
     this.hyperParts = g;
-    const chrome = new THREE.MeshStandardMaterial({ color: '#cfd8e3', metalness: 0.95, roughness: 0.15 });
-    const neon = ['#ff006e', '#3a86ff', '#ffbe0b', '#06d6a0'];
-    // four rocket boosters strapped under the basket
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    this.insano = insano;
+    const chrome = new THREE.MeshStandardMaterial({ color: insano ? '#2b2b33' : '#cfd8e3', metalness: 0.95, roughness: 0.15 });
+    const neon = insano ? ['#ff3d00', '#ffb000', '#ff3d00', '#ffb000', '#ff3d00', '#ffb000'] : ['#ff006e', '#3a86ff', '#ffbe0b', '#06d6a0'];
+    const count = insano ? 6 : 4;
+    const radius = insano ? 2.3 : 1.9;
+    const size = insano ? 1.35 : 1;
+    // rocket boosters strapped under the basket
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2 + Math.PI / 4;
       const b = new THREE.Group();
-      b.position.set(Math.cos(a) * 1.9, 0.4, Math.sin(a) * 1.9);
+      b.scale.setScalar(size);
+      b.position.set(Math.cos(a) * radius, 0.4, Math.sin(a) * radius);
       const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 1.6, 4, 12), chrome);
       b.add(body);
       const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.25, 12), new THREE.MeshBasicMaterial({ color: neon[i] }));
@@ -419,8 +439,24 @@ export class BalloonView {
       this.boosterFlames.push(flame);
       g.add(b);
     }
+    if (insano) {
+      // flaming spikes around the crown and a skull-white stripe of exhaust vents
+      const gold = new THREE.MeshStandardMaterial({ color: '#ffd166', metalness: 0.9, roughness: 0.2, emissive: '#7a4a00', emissiveIntensity: 0.4 });
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.4, 6), gold);
+        spike.position.set(Math.cos(a) * 6.2, 17.8, Math.sin(a) * 6.2);
+        spike.lookAt(Math.cos(a) * 12, 22, Math.sin(a) * 12);
+        spike.rotateX(Math.PI / 2);
+        this.envelopeGroup.add(spike);
+      }
+      const jet = new THREE.Mesh(new THREE.ConeGeometry(1.6, 7, 16, 1, true).rotateX(Math.PI).translate(0, -3.5, 0), new THREE.MeshBasicMaterial({ color: '#ff6a00', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+      jet.position.y = -1.2;
+      g.add(jet);
+      this.boosterFlames.push(jet);
+    }
     // spinning neon halo rings around the envelope
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < (insano ? 3 : 2); i++) {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(9.6 + i * 1.4, 0.18, 8, 80), new THREE.MeshBasicMaterial({ color: neon[i], transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
       ring.position.y = 13;
       ring.rotation.x = Math.PI / 2 + (i ? 0.35 : -0.35);
@@ -484,15 +520,16 @@ export class BalloonView {
     this.pennant.rotation.y = Math.sin(time * 7) * 0.35 - vx * 0.03;
     if (this.hyperParts) {
       // the whole envelope pulses through the rainbow
-      this.envMat.emissive.setHSL((time * 0.25) % 1, 0.9, 0.04 + 0.03 * Math.sin(time * 6));
+      if (this.insano) this.envMat.emissive.setRGB(0.18 + 0.1 * Math.sin(time * 9), 0.04, 0);
+      else this.envMat.emissive.setHSL((time * 0.25) % 1, 0.9, 0.04 + 0.03 * Math.sin(time * 6));
       for (const [i, r] of this.rings.entries()) {
         r.rotation.z += dt * (i ? -2.4 : 3.1);
-        (r.material as THREE.MeshBasicMaterial).color.setHSL((time * 0.3 + i * 0.5) % 1, 1, 0.45);
+        (r.material as THREE.MeshBasicMaterial).color.setHSL(this.insano ? 0.02 + i * 0.05 + Math.sin(time * 4) * 0.02 : (time * 0.3 + i * 0.5) % 1, 1, 0.45);
       }
       for (const f of this.boosterFlames) {
         const len = (st.burning ? (st.boosting ? 2.2 : 1.4) : 0.35) * (0.85 + Math.random() * 0.3);
         f.scale.set(1, len, 1);
-        (f.material as THREE.MeshBasicMaterial).color.setHSL(0.55 + Math.sin(time * 9) * 0.05, 1, 0.65);
+        (f.material as THREE.MeshBasicMaterial).color.setHSL(this.insano ? 0.05 + Math.sin(time * 13) * 0.04 : 0.55 + Math.sin(time * 9) * 0.05, 1, this.insano ? 0.55 : 0.65);
       }
     }
 

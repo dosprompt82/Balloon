@@ -18,7 +18,8 @@ export function HowToPlay() {
             <span className="kbd">Shift</span> emergency boost (burns 3× fuel).<br />
             <span className="kbd">Space</span> use tool · <span className="kbd">Q</span> switch tool · <span className="kbd">E</span> repair.<br />
             <span className="kbd">Tab</span> equipment · <span className="kbd">Esc</span> pause · mouse drag/wheel = camera.<br />
-            <span className="kbd">F1</span> toggles the secret <b>Hyperion X</b> rocket balloon — absurdly fast, no fuel use, smashes through hazards.
+            <span className="kbd">F1</span> toggles the secret <b>Hyperion X</b> rocket balloon — absurdly fast, no fuel use, smashes through hazards.<br />
+            <span className="kbd">F2</span> toggles <b>Insano X</b> — six afterburners, more than twice as fast as Hyperion.
           </p>
           <p>
             <b>Momentum matters:</b> the balloon keeps rising after you release the burner and takes a while to start sinking. Plan ahead!

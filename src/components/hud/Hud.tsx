@@ -218,7 +218,7 @@ export function Hud() {
   const h = useGame((s) => s.hud);
   const paused = useGame((s) => s.paused);
   const equip = useGame((s) => s.equipmentOpen);
-  const hyper = useGame((s) => s.hyper);
+  const special = useGame((s) => s.special);
   if (!h) return null;
   const hurt = Math.min(h.envelope / h.maxEnvelope, h.basket / h.maxBasket);
   const vignette = h.hypoxic ? 'inset 0 0 160px 60px rgba(40,0,80,0.7)' : hurt < 0.3 ? `inset 0 0 140px 40px rgba(200,0,30,${0.35 + 0.2 * Math.sin(h.time * 6)})` : h.temp < -20 ? 'inset 0 0 140px 30px rgba(170,220,255,0.35)' : 'none';
@@ -240,7 +240,8 @@ export function Hud() {
       {h.noFuel && !h.dying && <div className="hint" style={{ background: '#ffe0e6' }}>Out of fuel! Find a canister or press <span className="kbd">Enter</span> to parachute down.</div>}
       {!h.noFuel && <Hint h={h} />}
       <div className="status-row">
-        {hyper && <span className="status-pill" style={{ background: 'linear-gradient(90deg,#ff006e,#8338ec,#3a86ff)' }}>🚀 HYPERION X · F1</span>}
+        {special === 'hyper' && <span className="status-pill" style={{ background: 'linear-gradient(90deg,#ff006e,#8338ec,#3a86ff)' }}>🚀 HYPERION X · F1</span>}
+        {special === 'insano' && <span className="status-pill" style={{ background: 'linear-gradient(90deg,#d00000,#ff3d00,#ffb000)' }}>🔥 INSANO X · F2</span>}
         {h.shield > 0 && <span className="status-pill">◯ Shield {Math.ceil(h.shield)}s</span>}
         {h.rod > 0 && <span className="status-pill">⚡ Rod {Math.ceil(h.rod)}s</span>}
         {h.hypoxic && <span className="status-pill" style={{ background: '#5a189a' }}>NO OXYGEN</span>}

@@ -1,6 +1,6 @@
 import type { Modifiers } from './modifiers';
 
-export type PatternType = 'stripes' | 'sunburst' | 'patchwork' | 'zigzag' | 'stars' | 'checker' | 'gradient' | 'spiral' | 'hyper';
+export type PatternType = 'stripes' | 'sunburst' | 'patchwork' | 'zigzag' | 'stars' | 'checker' | 'gradient' | 'spiral' | 'hyper' | 'insano';
 
 export interface BalloonDef {
   id: string;
@@ -34,6 +34,13 @@ export const HYPER_BALLOON: BalloonDef = {
   id: 'hyper', name: 'HYPERION X', description: 'Rocket-boosted, neon-ringed and absurdly fast. Smashes through anything.',
   pattern: 'hyper', colors: ['#ff006e', '#fb5607', '#ffbe0b', '#06d6a0', '#3a86ff', '#8338ec'],
   envelopeHp: 300, basketHp: 250, fuelCapacity: 200, modifiers: {}, cost: 0, level: 1, scale: 1.15,
+};
+
+/** Secret F2 balloon: even faster than Hyperion X. */
+export const INSANO_BALLOON: BalloonDef = {
+  id: 'insano', name: 'INSANO X', description: 'Six afterburners, a molten envelope and no speed limit worth mentioning.',
+  pattern: 'insano', colors: ['#120c1c', '#ff3d00', '#ffb000', '#ffe066', '#d00000'],
+  envelopeHp: 400, basketHp: 320, fuelCapacity: 250, modifiers: {}, cost: 0, level: 1, scale: 1.2,
 };
 
 export const balloonById = (id: string) => BALLOONS.find((b) => b.id === id) ?? BALLOONS[0];

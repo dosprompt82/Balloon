@@ -12,6 +12,7 @@ import type { FlightModifiers, RunResult } from '../game/core/types';
 import type { FlightSim } from '../game/simulation';
 import type { ToolId } from '../data/tools';
 import { hashString } from '../game/core/rng';
+import type { SpecialId } from '../data/config';
 
 export type Screen =
   | 'menu' | 'character' | 'garage' | 'upgrades' | 'challenges' | 'achievements' | 'stats'
@@ -123,8 +124,8 @@ interface GameState {
   flight: FlightConfig | null;
   lastResult: RunResult | null;
   flowStep: number;
-  hyper: boolean;
-  setHyper(on: boolean): void;
+  special: SpecialId | null;
+  setSpecial(id: SpecialId | null): void;
   setScreen(s: Screen): void;
   update(fn: (s: SaveData) => void): void;
   toast(t: Omit<Toast, 'id'>, ms?: number): void;
@@ -156,9 +157,9 @@ export const useGame = create<GameState>((set, get) => ({
   flight: null,
   lastResult: null,
   flowStep: 0,
-  hyper: false,
-  setHyper(on) {
-    set({ hyper: on });
+  special: null,
+  setSpecial(id) {
+    set({ special: id });
   },
 
   setScreen(screen) {

@@ -1,5 +1,6 @@
 import type { Action, Settings } from '../persistence/save';
 import { emptyInput, type SimInput } from '../simulation';
+import type { SpecialId } from '../../data/config';
 
 /** Keyboard + mouse input with rebinding support and edge-triggered actions. */
 export class InputManager {
@@ -16,8 +17,8 @@ export class InputManager {
   private lastY = 0;
   enabled = false;
   onAction?: (a: Action) => void;
-  /** F1 toggles the secret Hyperion balloon (works in menus and in flight). */
-  onHyper?: () => void;
+  /** F1 / F2 toggle the secret Hyperion X / Insano X balloons (menus and flight). */
+  onSpecial?: (id: SpecialId) => void;
   private captureCallback: ((code: string) => void) | null = null;
   private bail = false;
 
@@ -52,9 +53,9 @@ export class InputManager {
       cb(e.code);
       return;
     }
-    if (e.code === 'F1') {
+    if (e.code === 'F1' || e.code === 'F2') {
       e.preventDefault();
-      if (!e.repeat) this.onHyper?.();
+      if (!e.repeat) this.onSpecial?.(e.code === 'F1' ? 'hyper' : 'insano');
       return;
     }
     const a = this.actionFor(e.code);

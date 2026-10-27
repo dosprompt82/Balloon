@@ -113,14 +113,12 @@ export const ECONOMY = {
   milestones: [500, 1000, 2000, 3000, 5000, 6000, 8000, 10000, 15000, 22000, 30000, 35000, 50000, 60000, 80000, 100000, 125000, 150000, 200000, 300000, 500000],
 };
 
-/** Multipliers applied while the F1 Hyperion balloon is active. */
-export const HYPER = {
-  burner: 3,
-  lift: 3.2,
-  heatCap: 3,
-  steer: 4,
-  damage: 0.15,
-  smashCoins: 5,
+export type SpecialId = 'hyper' | 'insano';
+
+/** Multipliers for the secret balloons: F1 Hyperion X and F2 Insano X. */
+export const SPECIALS: Record<SpecialId, { key: string; burner: number; lift: number; heatCap: number; steer: number; damage: number; smashCoins: number }> = {
+  hyper: { key: 'F1', burner: 3, lift: 3.2, heatCap: 3, steer: 4, damage: 0.15, smashCoins: 5 },
+  insano: { key: 'F2', burner: 7, lift: 7.5, heatCap: 5, steer: 7, damage: 0.05, smashCoins: 10 },
 };
 
 export const DIFFICULTY = {

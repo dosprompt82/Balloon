@@ -44,7 +44,7 @@ export class CameraRig {
       this.initialized = true;
     }
     this.target.x = damp(this.target.x, want.x, 3, dt);
-    // follow tighter at high climb rates (Hyperion) so the balloon never leaves frame
+    // follow tighter at high climb rates (secret balloons) so the balloon never leaves frame
     this.target.y = damp(this.target.y, want.y, 3.5 + Math.abs(vy) * 0.25, dt);
     const cp = Math.cos(this.pitch);
     const off = new THREE.Vector3(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp).multiplyScalar(this.distance);

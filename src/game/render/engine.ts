@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { SIM, ALTITUDE, PHYSICS } from '../../data/config';
 import { characterById } from '../../data/characters';
-import { balloonById, HYPER_BALLOON } from '../../data/balloons';
+import { balloonById, HYPER_BALLOON, INSANO_BALLOON } from '../../data/balloons';
+import type { SpecialId } from '../../data/config';
 import { ZONES } from '../../data/zones';
 import { toolById } from '../../data/tools';
 import type { ObstacleId } from '../../data/obstacles';
@@ -137,7 +138,7 @@ export class GameEngine implements EngineApi {
 
     this.input = new InputManager(() => useGame.getState().save.settings, this.renderer.domElement);
     this.input.onAction = (a: Action) => this.onAction(a);
-    this.input.onHyper = () => this.toggleHyper();
+    this.input.onSpecial = (id) => this.toggleSpecial(id);
     window.addEventListener('resize', this.resize);
     this.resize();
     this.applySettings();
@@ -217,7 +218,7 @@ export class GameEngine implements EngineApi {
     const st = useGame.getState();
     const loadout = currentLoadout(st.save, cfg.mods);
     this.sim = new FlightSim(loadout, { seed: cfg.seed, previousBest: st.save.stats.bestAltitude });
-    this.sim.hyper = st.hyper;
+    this.sim.special = st.special;
     this.mode = 'flight';
     this.finishing = false;
     this.paused = false;
@@ -260,37 +261,41 @@ export class GameEngine implements EngineApi {
     audio.mood = 'menu';
   }
 
-  /** F1: swap to (or back from) the secret Hyperion X balloon, in menus or mid-flight. */
-  toggleHyper() {
+  /** F1 / F2: swap to (or back from) a secret balloon, in menus or mid-flight. */
+  toggleSpecial(id: SpecialId) {
     const st = useGame.getState();
-    const on = !st.hyper;
-    st.setHyper(on);
+    const next = st.special === id ? null : id;
+    const prevName = st.special === 'insano' ? 'Insano X' : 'Hyperion X';
+    st.setSpecial(next);
     audio.unlock();
-    audio.play(on ? 'record' : 'tool');
-    st.toast({ text: on ? '🚀 HYPERION X ENGAGED 🚀' : 'Hyperion X disengaged', kind: on ? 'gold' : 'info', big: on, sub: on ? 'Triple lift, no fuel use, smash through anything. Press F1 again to return.' : undefined }, 3200);
-    if (this.sim) this.sim.hyper = on;
+    audio.play(next ? 'record' : 'tool');
+    if (next === 'hyper') st.toast({ text: '🚀 HYPERION X ENGAGED 🚀', kind: 'gold', big: true, sub: 'Triple lift, no fuel use, smash through anything. F1 to return, F2 for something faster.' }, 3200);
+    else if (next === 'insano') st.toast({ text: '🔥 INSANO X — MAXIMUM OVERDRIVE 🔥', kind: 'danger', big: true, sub: 'Six afterburners. Over twice as fast as Hyperion. F2 to return.' }, 3600);
+    else st.toast({ text: `${prevName} disengaged`, kind: 'info' }, 2000);
+    if (this.sim) this.sim.special = next;
     this.buildBalloon();
     if (this.balloon) {
       const p = this.balloon.root.position;
-      for (const c of ['#ff006e', '#ffbe0b', '#3a86ff', '#06d6a0', '#8338ec']) this.additive.emit({ x: p.x, y: p.y + 12, count: 40, speed: 40, life: 1.2, size: 2, color: c, drag: 1.5 });
-      this.flash = Math.max(this.flash, 0.6);
-      this.rig.addShake(0.8);
+      const colors = next === 'insano' ? ['#ff3d00', '#ffb000', '#ffe066', '#d00000', '#ffffff'] : ['#ff006e', '#ffbe0b', '#3a86ff', '#06d6a0', '#8338ec'];
+      for (const c of colors) this.additive.emit({ x: p.x, y: p.y + 12, count: next === 'insano' ? 70 : 40, speed: next === 'insano' ? 60 : 40, life: 1.2, size: 2, color: c, drag: 1.5 });
+      this.flash = Math.max(this.flash, next === 'insano' ? 1 : 0.6);
+      this.rig.addShake(next === 'insano' ? 1.4 : 0.8);
     }
   }
 
   private buildBalloon() {
     const save = useGame.getState().save;
-    const hyper = useGame.getState().hyper;
+    const special = useGame.getState().special;
     const ch = characterById(save.selectedCharacter);
     const look = lookFor(save, ch);
-    const key = `${hyper ? 'hyper' : save.selectedBalloon}|${ch.id}|${look.shirt}|${look.pants}|${look.accessory}`;
+    const key = `${special ?? save.selectedBalloon}|${ch.id}|${look.shirt}|${look.pants}|${look.accessory}`;
     if (this.balloon && key === this.balloonKey) return;
     if (this.balloon) {
       this.scene.remove(this.balloon.root);
       this.balloon.dispose();
     }
     this.balloonKey = key;
-    this.balloon = new BalloonView(hyper ? HYPER_BALLOON : balloonById(save.selectedBalloon), new CharacterRig(ch, look));
+    this.balloon = new BalloonView(special === 'insano' ? INSANO_BALLOON : special === 'hyper' ? HYPER_BALLOON : balloonById(save.selectedBalloon), new CharacterRig(ch, look));
     this.scene.add(this.balloon.root);
   }
 
@@ -340,7 +345,7 @@ export class GameEngine implements EngineApi {
     if (b) {
       b.root.position.set(0, y, 0);
       b.update(dt, this.time, Math.sin(this.time * 0.4) * 2, 0, {
-        heat: 1, burning: useGame.getState().hyper || Math.sin(this.time * 0.9) > 0.55, boosting: false, venting: false, steer: 0, ice: 0, shield: 0, rod: 0,
+        heat: 1, burning: !!useGame.getState().special || Math.sin(this.time * 0.9) > 0.55, boosting: false, venting: false, steer: 0, ice: 0, shield: 0, rod: 0,
         fans: (useGame.getState().save.upgrades.fans ?? 0) > 0, deflate: 0, sandbags: 6,
       });
       b.character.setPose(this.showcaseKind === 'character' ? (Math.sin(this.time * 0.5) > 0.6 ? 'celebrate' : 'wave') : 'wave');
@@ -434,16 +439,19 @@ export class GameEngine implements EngineApi {
     if (sim.burning && Math.random() < dt * (sim.boosting ? 60 : 25)) {
       this.additive.emit({ x: px, y: py + 5.5, z: 0, vy: 9, count: 1, speed: 2, life: 0.6, size: 0.7, color: '#ffd166', color2: '#ff6b35' });
     }
-    if (sim.hyper) {
-      const hue = (this.time * 0.4) % 1;
-      const c = new THREE.Color().setHSL(hue, 1, 0.6);
-      const n = sim.burning ? (sim.boosting ? 6 : 3) : 1;
+    if (sim.special) {
+      const insano = sim.special === 'insano';
+      const c = insano ? new THREE.Color().setHSL(0.02 + Math.random() * 0.1, 1, 0.55) : new THREE.Color().setHSL((this.time * 0.4) % 1, 1, 0.6);
+      const nozzles = insano ? 6 : 4;
+      const n = (sim.burning ? (sim.boosting ? 6 : 3) : 1) * (insano ? 2 : 1);
       for (let i = 0; i < n; i++) {
-        const a = Math.floor(Math.random() * 4) * (Math.PI / 2) + Math.PI / 4;
-        this.additive.emit({ x: px + Math.cos(a) * 1.9, y: py - 1.5, z: Math.sin(a) * 1.9, vy: -18 - Math.abs(b.vy), count: 1, speed: 3, life: 1.1, size: 2.2, sizeEnd: 0.4, color: c, color2: '#ffffff', drag: 0.5 });
+        const a = Math.floor(Math.random() * nozzles) * ((Math.PI * 2) / nozzles) + Math.PI / 4;
+        const r = insano ? 2.3 : 1.9;
+        this.additive.emit({ x: px + Math.cos(a) * r, y: py - 1.5, z: Math.sin(a) * r, vy: -18 - Math.abs(b.vy), count: 1, speed: insano ? 5 : 3, life: insano ? 1.4 : 1.1, size: insano ? 3 : 2.2, sizeEnd: 0.4, color: c, color2: insano ? '#ffe066' : '#ffffff', drag: 0.5 });
       }
+      if (insano && Math.random() < dt * 20) this.particles.emit({ x: px, y: py - 4, vy: -10, count: 1, speed: 4, life: 2, size: 4, sizeEnd: 9, color: '#2b2522', alpha: 0.45 });
     }
-    const fov = sim.hyper ? 55 + Math.min(18, Math.abs(b.vy) * 0.6) : 55;
+    const fov = sim.special ? 55 + Math.min(sim.special === 'insano' ? 28 : 18, Math.abs(b.vy) * 0.6) : 55;
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, dt * 3);
       this.camera.updateProjectionMatrix();
@@ -473,7 +481,7 @@ export class GameEngine implements EngineApi {
     this.rain.vx = rainVx;
     this.rain.vy = rainVy;
     this.rain.update(dt, px, py);
-    this.streaks.amount = Math.min(1, Math.max(0, (Math.abs(sim.windX) - 6) / 14, sim.hyper ? (Math.abs(b.vy) - 8) / 15 : 0));
+    this.streaks.amount = Math.min(1, Math.max(0, (Math.abs(sim.windX) - 6) / 14, sim.special ? (Math.abs(b.vy) - 8) / 15 : 0));
     this.streaks.vx = sim.windX * 6;
     this.streaks.vy = -b.vy * 3 - 2;
     this.streaks.update(dt, px, py);

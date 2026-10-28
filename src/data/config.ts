@@ -94,6 +94,11 @@ export const COLLECT = {
   aheadMax: 130,
   lateralSpread: 42,
   maxActive: 40,
+  /** Mini O₂ boosts: small, frequent oxygen top-ups in the thin air. */
+  o2MiniInterval: 2.2,
+  o2MiniLowInterval: 0.9,
+  o2MiniTrail: 3,
+  o2MiniAheadSeconds: 2.5,
 };
 
 export const ECONOMY = {

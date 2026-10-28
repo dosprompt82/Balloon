@@ -277,6 +277,13 @@ export function makeCollectibleView(id: CollectibleId): THREE.Object3D {
       g.add(glow('#06d6a0', 6));
       break;
     }
+    case 'o2mini': {
+      g.add(mesh(new THREE.SphereGeometry(1.05, 14, 10), new THREE.MeshBasicMaterial({ color: '#7fe6ff', transparent: true, opacity: 0.85 })));
+      g.add(mesh(new THREE.SphereGeometry(0.28, 6, 4), new THREE.MeshBasicMaterial({ color: '#ffffff' }), -0.35, 0.4, 0.7));
+      g.add(glow('#5ad8ff', 7));
+      g.add(glow('#ffffff', 2.5));
+      break;
+    }
     case 'oxygen': {
       g.add(mesh(new THREE.SphereGeometry(1.5, 16, 12), new THREE.MeshStandardMaterial({ color: '#bdeaff', emissive: '#4cc9f0', emissiveIntensity: 0.7, transparent: true, opacity: 0.6, roughness: 0.05 })));
       g.add(mesh(new THREE.SphereGeometry(0.4, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff' }), -0.5, 0.6, 0.9));

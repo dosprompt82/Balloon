@@ -17,6 +17,7 @@ let uid = 1;
 export class Collectibles {
   readonly pool = new Pool<Collectible>(() => ({ alive: false, uid: 0, def: COLLECTIBLES[0], x: 0, y: 0, t: 0 }));
   private timer = 1;
+  private o2Timer = 1;
   private rng: Rng;
   constructor(seed: number, private rareMult: number) {
     this.rng = new Rng(seed ^ 0xc011ec7);
@@ -33,7 +34,15 @@ export class Collectibles {
     return c;
   }
 
-  update(dt: number, altitude: number, px: number, py: number, windX: number, needFuel: number, needRepair: number, needO2: number) {
+  update(dt: number, altitude: number, px: number, py: number, windX: number, needFuel: number, needRepair: number, needO2: number, pvy = 0) {
+    // mini O₂ boosts: a steady trickle in the oxygen zone, faster as the tank empties
+    if (altitude >= 6000) {
+      this.o2Timer -= dt;
+      if (this.o2Timer <= 0) {
+        this.o2Timer = COLLECT.o2MiniInterval + (COLLECT.o2MiniLowInterval - COLLECT.o2MiniInterval) * Math.min(1, needO2 * 1.4);
+        this.spawnO2Trail(px, py, windX, pvy);
+      }
+    }
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = COLLECT.spawnInterval * this.rng.range(0.6, 1.4);
@@ -66,6 +75,15 @@ export class Collectibles {
       const dx = rng.range(-3, 3);
       for (let i = 0; i < n; i++) this.spawn('coin', x + dx * i + Math.sin(i * 0.6) * 4, y + i * 4.5);
     } else this.spawn(def.id, x, y);
+  }
+
+  /** A short vertical trail of mini O₂ bubbles placed where the balloon will be in a couple of seconds. */
+  private spawnO2Trail(px: number, py: number, windX: number, pvy: number) {
+    const rng = this.rng;
+    const ahead = Math.min(185, 45 + Math.max(0, pvy) * COLLECT.o2MiniAheadSeconds);
+    const x = px + windX * 1.5 + rng.range(-22, 22);
+    const dx = rng.range(-1.5, 1.5);
+    for (let i = 0; i < COLLECT.o2MiniTrail; i++) this.spawn('o2mini', x + dx * i, py + ahead + i * 6);
   }
 
   /** A celebratory cluster after surviving a disaster. */

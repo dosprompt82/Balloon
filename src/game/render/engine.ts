@@ -652,6 +652,10 @@ export class GameEngine implements EngineApi {
             audio.play('shard');
             this.additive.emit({ x, y, count: 40, speed: 16, life: 1, size: 1.6, color: '#e0aaff', color2: '#00f5d4' });
             st.toast({ text: e.id === 'relic' ? 'LEGENDARY SKY RELIC!' : 'Star Shard found!', kind: 'gold', sub: e.id === 'relic' ? `+${e.amount} coins` : 'Rare currency for legendary gear' });
+          } else if (e.id === 'o2mini') {
+            audio.play('coin');
+            this.overlay.add('+O₂', '#a0e9ff', x, y, 15, 0.8);
+            this.additive.emit({ x, y, count: 8, speed: 6, life: 0.4, size: 0.8, color: '#a0e9ff' });
           } else {
             audio.play('pickup');
             const label = { fuel: '+FUEL', repair: '+2 REPAIR', oxygen: '+O₂' }[e.id as 'fuel' | 'repair' | 'oxygen'];

@@ -397,7 +397,7 @@ export class FlightSim {
     if (this.altitude >= RESOURCES.oxygenStartAltitude) {
       const use = RESOURCES.oxygenUsePerSecond * L.mods.oxygenUse * (1 + (this.altitude - RESOURCES.oxygenStartAltitude) / 50000);
       this.oxygen = Math.max(0, this.oxygen - use * dt);
-      if (this.oxygen < L.maxOxygen * 0.25 && this.oxygen > 0) this.alert('o2', 'Oxygen low — collect blue O₂ bubbles!', 'warn', 15);
+      if (this.oxygen < L.maxOxygen * 0.25 && this.oxygen > 0) this.alert('o2', 'Oxygen low — fly through the little blue O₂ bubbles!', 'warn', 15);
     } else this.oxygen = Math.min(L.maxOxygen, this.oxygen + 6 * dt);
     this.hypoxic = this.oxygen <= 0;
     if (this.hypoxic) {
@@ -425,6 +425,7 @@ export class FlightSim {
       dt, this.altitude, b.x, b.y, this.windX,
       1 - b.fuel / L.maxFuel, 1 - this.envelope / L.maxEnvelope,
       this.altitude > 5000 ? 1 - this.oxygen / L.maxOxygen : 0,
+      b.vy,
     );
     this.collect(dt);
 
@@ -619,6 +620,7 @@ export class FlightSim {
             this.repairMaterials += c.def.amount;
             break;
           case 'oxygen':
+          case 'o2mini':
             this.oxygen = Math.min(L.maxOxygen, this.oxygen + (L.maxOxygen * c.def.amount) / 100);
             break;
           case 'shard':
